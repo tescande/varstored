@@ -182,6 +182,13 @@ initialize_settings(struct xs_handle *xsh, domid_t domid)
     char path[64];
     char *s;
 
+    snprintf(path, sizeof(path),
+             "/local/domain/%u/platform/auth-require-only-pk", domid);
+    s = xs_read(xsh, XBT_NULL, path, NULL);
+    auth_require_only_pk = s && !strcmp(s, "true");
+    free(s);
+    INFO("Only PK is required: %s\n", auth_require_only_pk ? "true" : "false");
+
     snprintf(path, sizeof(path), "/local/domain/%u/platform/secureboot", domid);
     s = xs_read(xsh, XBT_NULL, path, NULL);
     secure_boot_enable = s && !strcmp(s, "true");
@@ -466,10 +473,6 @@ varstored_initialize(domid_t domid)
        goto err;
     }
 
-    /* Load auth data _before_ chrooting. */
-    if (!load_auth_data())
-        goto err;
-
     xsh = xs_open(0);
     if (!xsh) {
         ERR("Couldn't open xenstore: %d, %s", errno, strerror(errno));
@@ -477,6 +480,10 @@ varstored_initialize(domid_t domid)
     }
 
     initialize_settings(xsh, varstored_state.domid);
+
+    /* Load auth data _before_ chrooting. */
+    if (!load_auth_data())
+        goto err;
 
     if (!xs_write_pid(xsh)) {
         ERR("Failed to write pid to xenstore: %d, %s\n", errno, strerror(errno));
