@@ -110,6 +110,16 @@
       "</params>" \
     "</methodCall>"
 
+#define VM_GET_PLATFORM \
+    "<?xml version='1.0'?>" \
+    "<methodCall>" \
+      "<methodName>VM.get_platform</methodName>" \
+      "<params>" \
+        "<param><value><string>%s</string></value></param>" \
+        "<param><value><string>%s</string></value></param>" \
+      "</params>" \
+    "</methodCall>"
+
 #define VM_MESSAGE_CREATE_CALL \
     "<?xml version='1.0'?>" \
     "<methodCall>" \
@@ -851,4 +861,98 @@ out:
     free(session_ref);
     free(response);
     return ret;
+}
+
+char *xapidb_get_platform_key(char *key)
+{
+    int status;
+    char *session_ref = NULL;
+    char *response = NULL;
+    char *xpath = NULL;
+    char *value = NULL;
+    xmlDocPtr doc = NULL;
+    xmlXPathContextPtr xpath_ctx = NULL;
+    xmlChar *content = NULL;
+    xmlNodePtr node = NULL;
+    xmlXPathObjectPtr xpath_obj = NULL;
+
+    status = xmlrpc_call(&response, LOGIN_CALL);
+    if (status != HTTP_STATUS_OK) {
+        ERR("Failed to communicate with XAPI Log\n");
+        goto out;
+    }
+    if (!xmlrpc_process(response, &session_ref)) {
+        ERR("Failed to log to XAPI\n");
+        goto out;
+    }
+    free(response);
+    response = NULL;
+
+    if (!xapidb_vm_ref) {
+        status = xmlrpc_call(&response, VM_GET_BY_UUID_CALL, session_ref, xapidb_arg_uuid);
+        if (status != HTTP_STATUS_OK) {
+            ERR("Failed to communicate with XAPI\n");
+            goto out;
+        }
+        if (!xmlrpc_process(response, &xapidb_vm_ref)) {
+            ERR("Failed to lookup VM\n");
+            goto out;
+        }
+        free(response);
+        response = NULL;
+    }
+
+    status = xmlrpc_call(&response, VM_GET_PLATFORM, session_ref, xapidb_vm_ref);
+    if (status != HTTP_STATUS_OK) {
+        ERR("Failed to communicate with XAPI\n");
+        goto out;
+    }
+    doc = xmlReadMemory(response, strlen(response), "noname.xml", NULL, 0);
+    if (!doc) {
+        ERR("Failed to get VM platform parameter\n");
+        goto out;
+    }
+    free(response);
+    response = NULL;
+
+    xpath_ctx = xmlXPathNewContext(doc);
+    if (!xpath_ctx) {
+        ERR("Failed to allocate XML xpath context\n");
+        goto out;
+    }
+
+#define RESPONSE_XPATH "/methodResponse/params/param/value/struct"
+    status = asprintf(&xpath,
+                      RESPONSE_XPATH "/member/value/struct/member[name=\"%s\"]/value",
+                      key);
+    if (status < 0) {
+        ERR("Failed to allocate xpath string\n");
+        goto out;
+    }
+    xpath_obj = xmlXPathEvalExpression(BAD_CAST xpath, xpath_ctx);
+    if (!xpath_obj || !xpath_obj->nodesetval || xpath_obj->nodesetval->nodeNr == 0) {
+        ERR("Failed to parse XML path\n");
+        goto out;
+    }
+    node = xpath_obj->nodesetval->nodeTab[0];
+    content = xmlNodeGetContent(node);
+    value = strdup((char *)content);
+
+    status = xmlrpc_call(&response, LOGOUT_CALL, session_ref);
+    if (status != HTTP_STATUS_OK)
+        goto out;
+    if (!xmlrpc_process(response, NULL))
+        goto out;
+    free(response);
+    response = NULL;
+
+out:
+    free(session_ref);
+    free(response);
+    free(xpath);
+    xmlXPathFreeObject(xpath_obj);
+    xmlXPathFreeContext(xpath_ctx);
+    xmlFreeDoc(doc);
+
+    return value;
 }
