@@ -52,6 +52,8 @@ struct backend {
     bool (*set_variable)(void);
     /* Called when a Secure Boot verification failure occurs. */
     bool (*sb_notify)(void);
+    /* Called to get plaform key value. */
+    char *(*get_platform_key)(char *key);
 };
 
 extern const struct backend *db;

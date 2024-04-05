@@ -166,6 +166,7 @@ static struct auth_info auth_info[] = {
 
 struct efi_variable *var_list;
 bool secure_boot_enable;
+bool auth_require_only_pk;
 bool auth_enforce = true;
 bool persistent = true;
 
@@ -2267,6 +2268,10 @@ load_auth_data(void)
                                 &auth_info[i].data,
                                 &auth_info[i].data_len))
             return false;
+
+        /* Set all keys except PK not required if auth_require_only_pk */
+        if (auth_require_only_pk && strcmp(auth_info[i].pretty_name, "PK"))
+            auth_info[i].required = false;
     }
 
     return true;

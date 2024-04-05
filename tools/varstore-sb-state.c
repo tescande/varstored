@@ -62,6 +62,7 @@ usage(const char *progname)
 int main(int argc, char **argv)
 {
     DEPRIV_VARS
+    char *s;
 
     for (;;) {
         int c = getopt(argc, argv, "h" DEPRIV_OPTS);
@@ -92,8 +93,13 @@ int main(int argc, char **argv)
     if (opt_socket)
         db->parse_arg("socket", opt_socket);
 
-    if (!strcmp(argv[optind + 1], "user"))
+    if (!strcmp(argv[optind + 1], "user")) {
+        s = db->get_platform_key("auth-require-only-pk");
+        auth_require_only_pk = s && !strcmp(s, "true");
+        free(s);
+
         load_auth_data();
+    }
 
     if (!drop_privileges(opt_chroot, opt_depriv, opt_gid, opt_uid))
         exit(1);

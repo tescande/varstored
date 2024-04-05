@@ -63,4 +63,5 @@ const struct backend xapidb_cmdline = {
     .check_args = xapidb_cmdline_check_args,
     .init = xapidb_init,
     .set_variable = xapidb_set_variable,
+    .get_platform_key = xapidb_get_platform_key,
 };
